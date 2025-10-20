@@ -1,5 +1,4 @@
-# Save this as app.py and run with `streamlit run app.py`
-
+# app.py
 import os
 import difflib
 import tempfile
@@ -19,9 +18,7 @@ st.set_page_config(page_title="GK XML Comparison", layout="wide")
 MODEL_FILE = "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
 MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
-
-# Replace with a direct download link to the .gguf file
-MODEL_URL = "https://huggingface.co/path/to/Meta-Llama-3-8B-Instruct.Q4_0.gguf"  
+MODEL_URL = "<INSERT_DIRECT_DOWNLOAD_LINK>"  # Replace with actual download URL
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -155,4 +152,28 @@ if old_files and new_files:
                     line = diff[i]
                     if line.startswith('- '):
                         old_par = Paragraph(f'<font color="red">{line[2:]}</font>', cell_style)
-                        new_par = Paragraph("", cell_
+                        new_par = Paragraph("", cell_style)
+                    elif line.startswith('+ '):
+                        old_par = Paragraph("", cell_style)
+                        new_par = Paragraph(f'<font color="green">{line[2:]}</font>', cell_style)
+                    else:
+                        old_par = Paragraph(f'<font color="gray">{line[2:]}</font>', cell_style)
+                        new_par = Paragraph(f'<font color="gray">{line[2:]}</font>', cell_style)
+
+                    table_data.append([old_par, new_par])
+
+                elements.append(Paragraph(f"<b>{fname}</b>", styles['Heading2']))
+                elements.append(Spacer(1, 12))
+                t = Table(table_data, colWidths=[270, 270])
+                t.setStyle(TableStyle([
+                    ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ]))
+                elements.append(t)
+                elements.append(PageBreak())
+
+            doc.build(elements)
+            st.success("PDF generated!")
+            st.download_button("Download PDF", data=open(tmp_file.name, "rb").read(), file_name="comparison_report.pdf")
