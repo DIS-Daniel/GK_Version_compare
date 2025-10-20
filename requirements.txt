@@ -1,4 +1,4 @@
-streamlit
-gpt4all
-reportlab
-requests
+streamlit==1.26.0
+reportlab==4.1.0
+requests==2.31.0
+gpt4all==1.0.6  # optional, won't break deployment if model missing

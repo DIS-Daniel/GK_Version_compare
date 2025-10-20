@@ -2,9 +2,7 @@
 import os
 import difflib
 import tempfile
-import requests
 import streamlit as st
-from gpt4all import GPT4All
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
@@ -13,44 +11,28 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 st.set_page_config(page_title="GK XML Comparison", layout="wide")
 
 # ----------------------------
-# GPT4All Model Setup
+# Optional GPT4All setup (disabled by default)
 # ----------------------------
-MODEL_FILE = "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
-MODEL_DIR = "models"
-MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
-MODEL_URL = "<INSERT_DIRECT_DOWNLOAD_LINK>"  # Replace with actual download URL
-
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-# Download model if missing
-if not os.path.exists(MODEL_PATH):
-    if not MODEL_URL or MODEL_URL.startswith("<INSERT"):
-        st.error(f"❌ Model file not found: {MODEL_PATH}")
-        st.stop()
-    with st.spinner(f"Downloading {MODEL_FILE}..."):
-        response = requests.get(MODEL_URL, stream=True)
-        total = int(response.headers.get('content-length', 0))
-        with open(MODEL_PATH, 'wb') as f:
-            downloaded = 0
-            for chunk in response.iter_content(chunk_size=1024*1024):
-                downloaded += len(chunk)
-                f.write(chunk)
-                if total:
-                    st.progress(min(downloaded / total, 1.0))
-    st.success(f"{MODEL_FILE} downloaded successfully!")
-
-# Load GPT4All model (optional)
 show_gpt_summary = st.checkbox("Generate GPT Summary (CPU-intensive)", value=False)
-model_loaded = False
-if show_gpt_summary:
-    try:
-        with st.spinner("Loading GPT4All model (CPU)..."):
-            model = GPT4All(MODEL_FILE, model_path=MODEL_DIR)
-        model_loaded = True
-        st.success("✅ GPT4All model loaded successfully!")
-    except Exception as e:
-        st.warning(f"❌ Failed to load GPT4All model: {e}. GPT summary will be skipped.")
-        show_gpt_summary = False
+
+try:
+    if show_gpt_summary:
+        from gpt4all import GPT4All
+        MODEL_FILE = "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
+        MODEL_DIR = "models"
+        MODEL_PATH = os.path.join(MODEL_DIR, MODEL_FILE)
+        os.makedirs(MODEL_DIR, exist_ok=True)
+
+        if not os.path.exists(MODEL_PATH):
+            st.warning("GPT4All model not found. GPT summary will be skipped.")
+            show_gpt_summary = False
+        else:
+            with st.spinner("Loading GPT4All model (CPU)..."):
+                model = GPT4All(MODEL_FILE, model_path=MODEL_DIR)
+            st.success("✅ GPT4All model loaded successfully!")
+except Exception as e:
+    st.warning(f"GPT4All cannot be loaded: {e}")
+    show_gpt_summary = False
 
 # ----------------------------
 # File upload and comparison
@@ -125,16 +107,17 @@ if old_files and new_files:
             html_table += "</table>"
             st.markdown(html_table, unsafe_allow_html=True)
 
-            # GPT Summary
-            if show_gpt_summary and model_loaded:
+            # GPT Summary (optional)
+            if show_gpt_summary:
                 diff_snippet = "\n".join([diff[i] for i in included_lines if diff[i].startswith('+') or diff[i].startswith('-')])[:4000]
                 if diff_snippet:
                     prompt = f"Summarize the following differences in '{fname}':\n{diff_snippet}"
-                    with model.chat_session():
-                        summary = model.generate(prompt, max_tokens=300)
-                    st.markdown(f"**GPT Summary:** {summary}")
-                else:
-                    st.markdown("**GPT Summary:** No significant changes detected.")
+                    try:
+                        with model.chat_session():
+                            summary = model.generate(prompt, max_tokens=300)
+                        st.markdown(f"**GPT Summary:** {summary}")
+                    except Exception as e:
+                        st.warning(f"GPT summary failed: {e}")
 
         # PDF report
         if st.button("Generate PDF Report"):
